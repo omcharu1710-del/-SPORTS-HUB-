@@ -1645,10 +1645,10 @@ function renderStudents(searchOverride) {
     const acStr = (window.ukLiveAchievements||[]).filter(a=>a.student_id===st.id).length;
     
     html += `
-      <div class="rcard" style="cursor:pointer;" onclick="openStudentProfile('${st.id}')">
+      <div class="rcard" data-st-id="${st.id}" style="cursor:pointer;" onclick="openStudentProfile('${st.id}')">
         <div class="rcard-img"><img src="${avatar}" alt="${st.name}" loading="lazy"/></div>
         <div class="rcard-name">${st.name}</div>
-        <div class="rcard-badge">${st.program || 'Academy'} ${st.batch ? '· '+st.batch : ''}</div>
+        <div class="rcard-badge">${st.game || st.program || 'Academy'} ${st.batch ? '· '+st.batch : ''}</div>
         <div class="rcard-stats">
           <div class="rcard-stat"><div class="rcard-val">${present} / ${total}</div><div class="rcard-lbl">Classes</div></div>
           <div class="rcard-stat"><div class="rcard-val" style="color:var(--gold)">${acStr}</div><div class="rcard-lbl">Awards</div></div>
@@ -1668,14 +1668,42 @@ document.addEventListener("DOMContentLoaded", () => {
 (async()=>{
   try{
     const {initializeApp}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const {getFirestore,doc,onSnapshot}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const {getFirestore,doc,getDoc,onSnapshot}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const app=initializeApp({apiKey:"AIzaSyCRuQXdMhSyYS69uVaH8n3Kd4YACsbTP5A",authDomain:"sp-uyirkalai.firebaseapp.com",projectId:"sp-uyirkalai",storageBucket:"sp-uyirkalai.firebasestorage.app",messagingSenderId:"917896500550",appId:"1:917896500550:web:99ad36246417ad32554147"});
     const db=getFirestore(app);
+
+    // ── Load student photos from student_photos collection ──
+    async function loadStudentPhotos(){
+      const students = window.ukLiveStudents || [];
+      if(!students.length) return;
+      // Load photos in background for each student
+      for(const s of students){
+        if(!s.photo){
+          try{
+            const pDoc = await getDoc(doc(db,'student_photos','st_'+s.id));
+            if(pDoc.exists() && pDoc.data().photo){
+              s.photo = pDoc.data().photo;
+              // Update any visible rcard images live
+              const imgEl = document.querySelector(`[data-st-id="${s.id}"] img`);
+              if(imgEl) imgEl.src = s.photo;
+            }
+          }catch(e){}
+        }
+      }
+      // Re-render if a branch is open
+      if(currentRosterBranch) renderStudents();
+    }
+
     onSnapshot(doc(db,'apps','uyir_kalai'),snap=>{
       if(!snap.exists())return;
       const d=snap.data();
       if(d.branches) { window.ukLiveBranches = JSON.parse(d.branches); if(!currentRosterBranch) showRosterBranches(); }
-      if(d.students) { window.ukLiveStudents = JSON.parse(d.students); if(currentRosterBranch) renderStudents(); else showRosterBranches(); }
+      if(d.students) {
+        window.ukLiveStudents = JSON.parse(d.students);
+        if(currentRosterBranch) renderStudents(); else showRosterBranches();
+        // Now fetch photos in background
+        setTimeout(loadStudentPhotos, 500);
+      }
       if(d.attendance) { window.ukLiveAttendance = JSON.parse(d.attendance); }
       if(d.achievements) { window.ukLiveAchievements = JSON.parse(d.achievements); }
 
@@ -1704,7 +1732,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if(d.posts){
         try{
           const posts=JSON.parse(d.posts);
-          // Show pinned + notice/event/result type posts (most recent 8)
           const announcements=posts
             .filter(p=>p.pin==1||p.type==='notice'||p.type==='event'||p.type==='result')
             .sort((a,b)=>(b.ts||0)-(a.ts||0))
