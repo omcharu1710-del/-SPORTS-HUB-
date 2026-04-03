@@ -243,7 +243,7 @@ textarea{resize:vertical;min-height:80px;}
           settings: JSON.stringify(spSettings),
           logo: logoCloud,
           pl: JSON.stringify(spPLEntries),
-          ts: Date.now()
+          ts: parseInt(localStorage.getItem('sp_ts')) || Date.now()
         });
       }catch(e){
         console.log('Cloud save SP error:',e);
@@ -304,7 +304,7 @@ textarea{resize:vertical;min-height:80px;}
           web_gal: JSON.stringify(webGalCloud),
           web_vid: JSON.stringify(ukWebVideos),
           web_prog: JSON.stringify(ukWebPrograms),
-          ts: Date.now()
+          ts: parseInt(localStorage.getItem('uk_ts')) || Date.now()
         });
 
         // ── Student photos — each student = separate Firestore doc ──
@@ -420,7 +420,7 @@ textarea{resize:vertical;min-height:80px;}
     function renderAllUkScreens() {
       renderUkFeed();renderUkStudents();renderUkBranches();
       updateUkTicker();showUkLogo();ukPopulateBranchDropdowns();ukPopulateStBranch();
-      if(document.getElementById('uk-attendance').classList.add('active')) renderUkAtt();
+      if(document.getElementById('uk-attendance').classList.contains('active')) renderUkAtt();
     }
 
     window.dbReady=true;
@@ -2164,8 +2164,12 @@ async function genUkAttPoster(date) {
     ctx.save();
     ctx.beginPath(); ctx.arc(x, ry, 60, 0, Math.PI*2); ctx.clip();
     if(s.photo) {
-        const img = await new Promise(res => { const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.src=s.photo; });
-        ctx.drawImage(img, x-60, ry-60, 120, 120);
+        const img = await new Promise(res => { const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=()=>res(null); im.src=s.photo; });
+        if(img) { ctx.drawImage(img, x-60, ry-60, 120, 120); }
+        else {
+            ctx.fillStyle = '#011220'; ctx.fillRect(x-60, ry-60, 120, 120);
+            ctx.fillStyle = '#4db8ff'; ctx.font = '50px Arial'; ctx.fillText('👤', x, ry+20);
+        }
     } else {
         ctx.fillStyle = '#011220'; ctx.fillRect(x-60, ry-60, 120, 120);
         ctx.fillStyle = '#4db8ff'; ctx.font = '50px Arial'; ctx.fillText('👤', x, ry+20);
@@ -2183,10 +2187,25 @@ async function genUkAttPoster(date) {
   ctx.textAlign = 'center'; ctx.fillStyle = '#336688'; ctx.font = 'bold 24px Arial';
   ctx.fillText('uyirkalai.in | ' + (ukSettings.ph || ''), 540, canvas.height - 40);
 
-  const link = document.createElement('a');
-  link.download = `UK_Attendance_${date}.jpg`;
-  link.href = canvas.toDataURL('image/jpeg', 0.9);
-  link.click();
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="width:100%;max-width:500px;background:#011220;border:1px solid #4db8ff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;max-height:100%;">
+      <div style="padding:12px;background:#001a33;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #0a2a44;">
+        <div style="font-size:14px;font-weight:bold;color:#4db8ff;">📸 Poster Ready!</div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:#ff4444;font-size:20px;cursor:pointer;padding:0 8px;">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;text-align:center;padding:16px;background:#010a12;">
+        <div style="font-size:12px;color:#25D366;margin-bottom:12px;">✅ Long-press the image below to Share or Save</div>
+        <img src="${dataUrl}" style="width:100%;height:auto;border-radius:8px;border:1px solid #336688;" />
+      </div>
+      <div style="padding:12px;background:#001a33;border-top:1px solid #0a2a44;text-align:center;">
+        <a download="UK_Attendance_${date}.jpg" href="${dataUrl}" style="display:inline-block;text-decoration:none;"><button class="btn btn-gold" style="font-size:14px;padding:10px 24px;">⬇️ Download (Web / Android)</button></a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
   showToast('Poster generated! 🖼️');
 }
 
@@ -2238,8 +2257,12 @@ async function genUkMonthlyAwardPoster(month) {
   ctx.save();
   ctx.beginPath(); ctx.arc(540, ky, 150, 0, Math.PI*2); ctx.clip();
   if(king.s.photo) {
-    const img = await new Promise(res => { const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.src=king.s.photo; });
-    ctx.drawImage(img, 540-150, ky-150, 300, 300);
+    const img = await new Promise(res => { const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=()=>res(null); im.src=king.s.photo; });
+    if(img){ ctx.drawImage(img, 540-150, ky-150, 300, 300); }
+    else {
+      ctx.fillStyle = '#0a2a44'; ctx.fillRect(390, 450, 300, 300);
+      ctx.fillStyle = '#fff'; ctx.font = '120px Arial'; ctx.fillText('👤', 540, ky+40);
+    }
   } else {
     ctx.fillStyle = '#0a2a44'; ctx.fillRect(390, 450, 300, 300);
     ctx.fillStyle = '#fff'; ctx.font = '120px Arial'; ctx.fillText('👤', 540, ky+40);
@@ -2277,10 +2300,25 @@ async function genUkMonthlyAwardPoster(month) {
   ctx.fillStyle = '#336688'; ctx.font = '24px Arial';
   ctx.fillText(ukSettings.addr || '', 540, 1810);
 
-  const link = document.createElement('a');
-  link.download = `UK_Awards_${month}.jpg`;
-  link.href = canvas.toDataURL('image/jpeg', 0.9);
-  link.click();
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="width:100%;max-width:500px;background:#011220;border:1px solid #c9a227;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;max-height:100%;">
+      <div style="padding:12px;background:#1a1400;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #3a2a00;">
+        <div style="font-size:14px;font-weight:bold;color:#f0c040;">👑 Award Poster Ready!</div>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="background:none;border:none;color:#ff4444;font-size:20px;cursor:pointer;padding:0 8px;">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;text-align:center;padding:16px;background:#010a12;">
+        <div style="font-size:12px;color:#25D366;margin-bottom:12px;">✅ Long-press the image below to Share or Save</div>
+        <img src="${dataUrl}" style="width:100%;height:auto;border-radius:8px;border:1px solid #336688;" />
+      </div>
+      <div style="padding:12px;background:#1a1400;border-top:1px solid #3a2a00;text-align:center;">
+        <a download="UK_Awards_${month}.jpg" href="${dataUrl}" style="display:inline-block;text-decoration:none;"><button class="btn btn-gold" style="font-size:14px;padding:10px 24px;">⬇️ Download (Web / Android)</button></a>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
   showToast('Award Poster generated! 👑🏆');
 }
 </script>
